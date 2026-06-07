@@ -1,0 +1,1476 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>Deep Sea Saboteur</title>
+<!-- Inline SVG favicon — prevents 404 for favicon.ico -->
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E🤿%3C/text%3E%3C/svg%3E">
+<!-- CrazyGames SDK v3 -->
+<script src="https://sdk.crazygames.com/crazygames-sdk-v3.js"></script>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Share+Tech+Mono&display=swap');
+
+  :root {
+    --danger: #ff2020;
+    --safe: #00ff88;
+    --warning: #ffaa00;
+    --ocean-deep: #020b18;
+    --ocean-mid: #041a30;
+    --ocean-light: #062444;
+    --sub-color: #c8e8ff;
+    --rock-color: #1a2a3a;
+    --rock-highlight: #2a3f55;
+    --glow-safe: 0 0 20px #00ff88, 0 0 40px #00ff8844;
+    --glow-danger: 0 0 20px #ff2020, 0 0 60px #ff202088;
+    --ui-text: #7ec8e3;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: var(--ocean-deep);
+    font-family: 'Orbitron', monospace;
+    overflow: hidden;
+    width: 100vw;
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    touch-action: none;
+    user-select: none;
+  }
+
+  /* ─── SCREENS ─── */
+  .screen {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    z-index: 100;
+    transition: opacity 0.5s ease;
+  }
+  .screen.hidden { opacity: 0; pointer-events: none; }
+
+  /* ─── MENU ─── */
+  #menuScreen {
+    background: radial-gradient(ellipse at 50% 60%, #041a3099 0%, #020b18ff 70%);
+  }
+  .menu-title {
+    font-size: clamp(2rem, 6vw, 4rem);
+    font-weight: 900;
+    color: #fff;
+    text-shadow: 0 0 30px #00aaff88, 0 0 60px #00aaff44;
+    letter-spacing: 0.08em;
+    text-align: center;
+    line-height: 1.1;
+    margin-bottom: 0.2em;
+  }
+  .menu-sub {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: clamp(0.7rem, 2vw, 1rem);
+    color: var(--ui-text);
+    letter-spacing: 0.2em;
+    margin-bottom: 3rem;
+    text-align: center;
+  }
+  .menu-bubble {
+    background: rgba(6,36,68,0.7);
+    border: 1px solid #1a5070;
+    border-radius: 12px;
+    padding: 1.5rem 2rem;
+    max-width: 420px;
+    width: 90%;
+    margin-bottom: 2rem;
+  }
+  .menu-bubble p {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: clamp(0.65rem, 1.8vw, 0.85rem);
+    color: #a0c8e0;
+    line-height: 1.8;
+    text-align: center;
+  }
+  .menu-bubble span.key {
+    background: #0a3a5a;
+    border: 1px solid #2a7090;
+    border-radius: 4px;
+    padding: 0 6px;
+    color: #00ffcc;
+    font-weight: bold;
+  }
+  .btn-start {
+    background: linear-gradient(135deg, #0a4a6a, #0d6a90);
+    border: 2px solid #00aaff88;
+    border-radius: 8px;
+    color: #fff;
+    font-family: 'Orbitron', monospace;
+    font-size: clamp(0.9rem, 2.5vw, 1.2rem);
+    font-weight: 700;
+    letter-spacing: 0.15em;
+    padding: 0.9em 2.5em;
+    cursor: pointer;
+    transition: all 0.2s;
+    box-shadow: 0 0 20px #00aaff44;
+    margin-bottom: 1rem;
+    width: 90%;
+    max-width: 300px;
+  }
+  .btn-start:hover, .btn-start:active {
+    background: linear-gradient(135deg, #0d6a90, #00aaff);
+    box-shadow: 0 0 40px #00aaff88;
+    transform: translateY(-2px);
+  }
+  .controls-hint {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: clamp(0.55rem, 1.5vw, 0.7rem);
+    color: #3a6a88;
+    letter-spacing: 0.1em;
+    margin-top: 0.5rem;
+    text-align: center;
+  }
+
+  /* Decorative fish/bubbles on menu */
+  .menu-deco {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    overflow: hidden;
+  }
+  .bubble-deco {
+    position: absolute;
+    border-radius: 50%;
+    background: radial-gradient(circle at 35% 35%, #00aaff22, transparent 70%);
+    border: 1px solid #00aaff11;
+    animation: rise linear infinite;
+  }
+  @keyframes rise {
+    from { transform: translateY(110vh) scale(1); opacity: 0.6; }
+    to   { transform: translateY(-10vh) scale(1.2); opacity: 0; }
+  }
+
+  /* ─── HUD ─── */
+  #hud {
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    padding: 10px 16px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    z-index: 50;
+    pointer-events: none;
+  }
+  .hud-label {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: clamp(0.55rem, 1.5vw, 0.75rem);
+    color: #3a7a9a;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+  }
+  .hud-value {
+    font-size: clamp(0.9rem, 2.5vw, 1.3rem);
+    font-weight: 700;
+    color: var(--ui-text);
+    letter-spacing: 0.08em;
+  }
+  .hud-box {
+    background: rgba(2,11,24,0.7);
+    border: 1px solid #0a3a5a;
+    border-radius: 6px;
+    padding: 6px 12px;
+    text-align: center;
+  }
+
+  /* Progress bar */
+  #progressBar {
+    position: absolute;
+    bottom: 0; left: 0; right: 0;
+    height: 4px;
+    background: rgba(255,255,255,0.05);
+    z-index: 50;
+  }
+  #progressFill {
+    height: 100%;
+    background: linear-gradient(90deg, #00aaff, #00ff88);
+    width: 0%;
+    transition: width 0.2s;
+    box-shadow: 0 0 8px #00aaff88;
+  }
+
+  /* Eye status indicator */
+  #eyeStatus {
+    position: absolute;
+    top: 60px; right: 16px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    z-index: 50;
+    pointer-events: none;
+  }
+  .status-dot {
+    width: 12px; height: 12px;
+    border-radius: 50%;
+    background: var(--safe);
+    box-shadow: var(--glow-safe);
+    transition: all 0.2s;
+  }
+  .status-dot.danger { background: var(--danger); box-shadow: var(--glow-danger); animation: pulse 0.4s ease infinite alternate; }
+  @keyframes pulse { from { transform: scale(1); } to { transform: scale(1.3); } }
+  .status-label {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 0.65rem;
+    color: var(--safe);
+    letter-spacing: 0.12em;
+    transition: color 0.2s;
+  }
+  .status-label.danger { color: var(--danger); }
+
+  /* ─── CANVAS ─── */
+  #gameCanvas {
+    display: block;
+    width: 100%;
+    height: 100%;
+    position: absolute;
+    inset: 0;
+  }
+
+  /* ─── GAME OVER / WIN ─── */
+  #overlayScreen {
+    background: rgba(2,11,24,0.88);
+    backdrop-filter: blur(6px);
+  }
+  .overlay-icon {
+    font-size: clamp(3rem, 10vw, 5rem);
+    margin-bottom: 0.5em;
+    filter: drop-shadow(0 0 20px currentColor);
+  }
+  .overlay-title {
+    font-size: clamp(1.5rem, 5vw, 3rem);
+    font-weight: 900;
+    letter-spacing: 0.1em;
+    margin-bottom: 0.3em;
+    text-align: center;
+  }
+  .overlay-sub {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: clamp(0.7rem, 2vw, 0.95rem);
+    color: #7ec8e3;
+    margin-bottom: 2rem;
+    letter-spacing: 0.1em;
+    text-align: center;
+  }
+  .overlay-stats {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: clamp(0.65rem, 1.8vw, 0.85rem);
+    color: #5a9ab8;
+    margin-bottom: 2rem;
+    text-align: center;
+    line-height: 2;
+  }
+
+  /* Scanline overlay for atmosphere */
+  #scanlines {
+    position: absolute;
+    inset: 0;
+    background: repeating-linear-gradient(
+      to bottom,
+      transparent 0px,
+      transparent 3px,
+      rgba(0,0,0,0.08) 3px,
+      rgba(0,0,0,0.08) 4px
+    );
+    pointer-events: none;
+    z-index: 200;
+  }
+
+  /* Mobile tap hint */
+  #tapHint {
+    position: absolute;
+    bottom: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 0.65rem;
+    color: #2a5a78;
+    letter-spacing: 0.12em;
+    z-index: 55;
+    pointer-events: none;
+    text-align: center;
+  }
+
+  /* Caught flash */
+  #dangerFlash {
+    position: absolute;
+    inset: 0;
+    background: rgba(255,32,32,0.0);
+    pointer-events: none;
+    z-index: 180;
+    transition: background 0.05s;
+  }
+
+  /* Milestone popup */
+  #milestonePopup {
+    position: absolute;
+    top: 30%;
+    left: 50%;
+    transform: translateX(-50%) translateY(-20px);
+    background: rgba(0,255,136,0.12);
+    border: 1px solid #00ff88;
+    border-radius: 8px;
+    padding: 0.6em 1.4em;
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 0.85rem;
+    color: #00ff88;
+    letter-spacing: 0.1em;
+    z-index: 160;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.3s, transform 0.3s;
+    text-align: center;
+  }
+  #milestonePopup.show {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
+</style>
+</head>
+<body>
+
+<!-- Scanline atmosphere -->
+<div id="scanlines"></div>
+<div id="dangerFlash"></div>
+<div id="milestonePopup"></div>
+
+<!-- ═══════════════════════ MENU ═══════════════════════ -->
+<div id="menuScreen" class="screen">
+  <div class="menu-deco" id="menuDeco"></div>
+  <div class="menu-title">DEEP SEA<br>SABOTEUR</div>
+  <div class="menu-sub">▸ CLASSIFIED OPERATION ▸</div>
+  <div class="menu-bubble">
+    <p>
+      HOLD <span class="key">SPACE</span> to thrust forward.<br>
+      RELEASE to hide behind rocks.<br><br>
+      The <span class="key" style="color:#ff2020">RED EYE</span> scans for movement.<br>
+      Move only when it's <span class="key" style="color:#00ff88">GREEN</span>.<br><br>
+      Reach the target before depth pressure crushes you.
+    </p>
+  </div>
+  <button class="btn-start" id="btnStart">▶ DIVE IN</button>
+  <div class="controls-hint">MOBILE: TAP &amp; HOLD ANYWHERE</div>
+</div>
+
+<!-- ═══════════════════════ GAME ═══════════════════════ -->
+<canvas id="gameCanvas"></canvas>
+
+<div id="hud" class="hidden">
+  <div class="hud-box">
+    <div class="hud-label">DEPTH</div>
+    <div class="hud-value" id="hudDepth">0m</div>
+  </div>
+  <div class="hud-box">
+    <div class="hud-label">SCORE</div>
+    <div class="hud-value" id="hudScore">0</div>
+  </div>
+  <div class="hud-box">
+    <div class="hud-label">LEVEL</div>
+    <div class="hud-value" id="hudLevel">1</div>
+  </div>
+</div>
+
+<div id="eyeStatus" class="hidden">
+  <div class="status-dot" id="statusDot"></div>
+  <div class="status-label" id="statusLabel">SAFE</div>
+</div>
+
+<div id="progressBar" class="hidden"><div id="progressFill"></div></div>
+<div id="tapHint" class="hidden">TAP &amp; HOLD TO MOVE</div>
+
+<!-- ═══════════════════════ OVERLAY ═══════════════════════ -->
+<div id="overlayScreen" class="screen hidden">
+  <div class="overlay-icon" id="overlayIcon">💀</div>
+  <div class="overlay-title" id="overlayTitle" style="color:#ff2020">DETECTED</div>
+  <div class="overlay-sub" id="overlaySub">The Watchdog has spotted you.</div>
+  <div class="overlay-stats" id="overlayStats"></div>
+  <button class="btn-start" id="btnRestart">↺ RETRY MISSION</button>
+  <button class="btn-start" id="btnMenu" style="background:linear-gradient(135deg,#0a2a3a,#0a3a5a);margin-top:0.4rem">⌂ MAIN MENU</button>
+</div>
+
+<script>
+// ════════════════════════════════════════════════════════════
+//  CrazyGames SDK — real integration with graceful degradation
+// ════════════════════════════════════════════════════════════
+const SDK = {
+  _ready:   false,  // true once CrazyGames.SDK.init() resolves
+  _playing: false,  // tracks whether gameplayStart has been sent
+                    // so we NEVER send Start→Start or Stop→Stop
+
+  // Called once on page load. CrazyGames.SDK.init() is async;
+  // we await it so all subsequent calls are safe.
+  async init() {
+    try {
+      if (typeof window.CrazyGames !== 'undefined' && window.CrazyGames.SDK) {
+        await window.CrazyGames.SDK.init();
+        this._sdk = window.CrazyGames.SDK;
+        this._ready = true;
+      }
+    } catch (e) {
+      // SDK failed to initialise (e.g. running outside CrazyGames iframe).
+      // All calls below degrade silently — no console errors thrown.
+      this._ready = false;
+    }
+  },
+
+  // State-gated: only fires when transitioning false → true.
+  // Repeated calls while already playing are swallowed silently.
+  gameplayStart() {
+    if (this._playing) return;   // already started — do nothing
+    this._playing = true;
+    if (!this._ready) return;
+    try { this._sdk.game.gameplayStart(); } catch (e) {}
+  },
+
+  // State-gated: only fires when transitioning true → false.
+  // Repeated calls while already stopped are swallowed silently.
+  gameplayStop() {
+    if (!this._playing) return;  // already stopped — do nothing
+    this._playing = false;
+    if (!this._ready) return;
+    try { this._sdk.game.gameplayStop(); } catch (e) {}
+  },
+
+  happytime() {
+    if (!this._ready) return;
+    try { this._sdk.game.happytime(); } catch (e) {}
+  },
+};
+
+// Kick off SDK init immediately on script parse — non-blocking.
+SDK.init();
+
+// ════════════════════════════════════════════════════════════
+//  AUDIO ENGINE
+// ════════════════════════════════════════════════════════════
+let audioCtx = null;
+let masterGain = null;
+let audioReady = false;
+let manualMute = false;
+let blurMuted = false;
+let ambientSource = null;
+let ambientGain = null;
+
+function initAudio() {
+  if (audioReady) return;
+  audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  masterGain = audioCtx.createGain();
+  masterGain.gain.value = 1;
+  masterGain.connect(audioCtx.destination);
+
+  ambientGain = audioCtx.createGain();
+  ambientGain.gain.value = 0.18;
+  ambientGain.connect(masterGain);
+  startAmbient();
+  audioReady = true;
+}
+
+function startAmbient() {
+  if (!audioCtx || ambientSource) return;
+  const buf = audioCtx.createBuffer(1, audioCtx.sampleRate * 4, audioCtx.sampleRate);
+  const data = buf.getChannelData(0);
+  for (let i = 0; i < data.length; i++) {
+    data[i] = (Math.random() * 2 - 1) * 0.6;
+  }
+  const src = audioCtx.createBufferSource();
+  src.buffer = buf;
+  src.loop = true;
+  const lp = audioCtx.createBiquadFilter();
+  lp.type = 'lowpass';
+  lp.frequency.value = 120;
+  src.connect(lp);
+  lp.connect(ambientGain);
+  src.start();
+  ambientSource = src;
+}
+
+function playTone(freq, dur, vol = 0.3, type = 'sine', decay = true) {
+  if (!audioCtx) return;
+  const osc = audioCtx.createOscillator();
+  const gain = audioCtx.createGain();
+  osc.type = type;
+  osc.frequency.value = freq;
+  gain.gain.setValueAtTime(vol, audioCtx.currentTime);
+  if (decay) gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + dur);
+  osc.connect(gain);
+  gain.connect(masterGain);
+  osc.start();
+  osc.stop(audioCtx.currentTime + dur);
+}
+
+function playDetected() {
+  playTone(80, 0.8, 0.5, 'sawtooth', true);
+  setTimeout(() => playTone(60, 1.2, 0.4, 'sawtooth', true), 200);
+}
+function playSafe()     { playTone(440, 0.15, 0.15, 'sine'); }
+function playDanger()   { playTone(200, 0.2, 0.2, 'square'); }
+function playWin()      {
+  [523,659,784,1047].forEach((f,i) => setTimeout(() => playTone(f, 0.4, 0.3, 'sine'), i * 150));
+}
+function playMilestone(){ playTone(880, 0.3, 0.25, 'sine'); setTimeout(() => playTone(1100, 0.3, 0.25, 'sine'), 180); }
+function playThrust()   {
+  if (!audioCtx) return;
+  const osc = audioCtx.createOscillator();
+  const gain = audioCtx.createGain();
+  osc.type = 'sawtooth';
+  osc.frequency.value = 55 + Math.random() * 10;
+  gain.gain.setValueAtTime(0.06, audioCtx.currentTime);
+  gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.12);
+  osc.connect(gain); gain.connect(masterGain);
+  osc.start(); osc.stop(audioCtx.currentTime + 0.12);
+}
+
+// Blur/Focus audio management
+window.addEventListener('blur', () => {
+  if (audioCtx && masterGain && !blurMuted) {
+    masterGain.gain.setTargetAtTime(0, audioCtx.currentTime, 0.1);
+    blurMuted = true;
+  }
+});
+window.addEventListener('focus', () => {
+  if (audioCtx && masterGain && blurMuted && !manualMute) {
+    masterGain.gain.setTargetAtTime(1, audioCtx.currentTime, 0.1);
+    blurMuted = false;
+  }
+});
+
+// ════════════════════════════════════════════════════════════
+//  DOM REFS
+// ════════════════════════════════════════════════════════════
+const menuScreen    = document.getElementById('menuScreen');
+const overlayScreen = document.getElementById('overlayScreen');
+const hud           = document.getElementById('hud');
+const eyeStatusEl   = document.getElementById('eyeStatus');
+const progressBar   = document.getElementById('progressBar');
+const tapHint       = document.getElementById('tapHint');
+const canvas        = document.getElementById('gameCanvas');
+const ctx2d         = canvas.getContext('2d');
+const hudDepth      = document.getElementById('hudDepth');
+const hudScore      = document.getElementById('hudScore');
+const hudLevel      = document.getElementById('hudLevel');
+const statusDot     = document.getElementById('statusDot');
+const statusLabel   = document.getElementById('statusLabel');
+const progressFill  = document.getElementById('progressFill');
+const overlayIcon   = document.getElementById('overlayIcon');
+const overlayTitle  = document.getElementById('overlayTitle');
+const overlaySub    = document.getElementById('overlaySub');
+const overlayStats  = document.getElementById('overlayStats');
+const dangerFlash   = document.getElementById('dangerFlash');
+const milestonePopup= document.getElementById('milestonePopup');
+const menuDeco      = document.getElementById('menuDeco');
+
+// ════════════════════════════════════════════════════════════
+//  GAME STATE
+// ════════════════════════════════════════════════════════════
+let gameState = 'menu'; // menu | playing | dead | win
+let level = 1;
+let score = 0;
+let totalScore = 0;
+let frameId = null;
+let lastTime = 0;
+let milestonesHit = [];
+
+// Input
+let keyDown = false;
+let touchDown = false;
+const isMoving = () => keyDown || touchDown;
+
+// Sub
+let sub = { x: 0, y: 0, vx: 0, vy: 0, hidden: false, angle: 0 };
+const SUB_SPEED = 180;      // px/s
+const SUB_DECEL = 8;
+const SUB_WOBBLE = 0.04;
+
+// Camera
+let camX = 0;
+
+// Level config
+const TRENCH_HEIGHT_RATIO = 0.55;
+let trenchW = 0, trenchH = 0, trenchY = 0;
+const TRENCH_LENGTH = 6000;
+
+// Rocks
+let rocks = [];
+
+// Eye / Watchdog
+let eyes = [];
+let eyeAlertFlash = 0;
+
+// Particles
+let particles = [];
+
+// Level milestone distances
+const MILESTONES = [0.25, 0.5, 0.75];
+
+// ════════════════════════════════════════════════════════════
+//  MENU DECORATION
+// ════════════════════════════════════════════════════════════
+function buildMenuDeco() {
+  menuDeco.innerHTML = '';
+  for (let i = 0; i < 18; i++) {
+    const b = document.createElement('div');
+    b.className = 'bubble-deco';
+    const sz = 20 + Math.random() * 60;
+    b.style.width = sz + 'px';
+    b.style.height = sz + 'px';
+    b.style.left = Math.random() * 100 + 'vw';
+    b.style.bottom = '-10vh';
+    b.style.animationDuration = (8 + Math.random() * 12) + 's';
+    b.style.animationDelay = (-Math.random() * 20) + 's';
+    menuDeco.appendChild(b);
+  }
+}
+buildMenuDeco();
+
+// ════════════════════════════════════════════════════════════
+//  CANVAS RESIZE
+// ════════════════════════════════════════════════════════════
+function resize() {
+  canvas.width  = window.innerWidth;
+  canvas.height = window.innerHeight;
+  trenchW = canvas.width;
+  trenchH = canvas.height * TRENCH_HEIGHT_RATIO;
+  trenchY = canvas.height * 0.18;
+}
+window.addEventListener('resize', () => { resize(); if (gameState === 'playing') initLevel(level, false); });
+resize();
+
+// ════════════════════════════════════════════════════════════
+//  LEVEL INIT
+// ════════════════════════════════════════════════════════════
+function initLevel(lvl, resetScore = true) {
+  level = lvl;
+  if (resetScore) score = 0;
+  milestonesHit = [];
+  particles = [];
+
+  // Sub start
+  sub.x = 60;
+  sub.y = trenchY + trenchH / 2;
+  sub.vx = 0; sub.vy = 0;
+  sub.hidden = true;
+  sub.angle = 0;
+  camX = 0;
+
+  // Rocks - grouped clusters for hiding spots
+  rocks = [];
+  const numRocks = 18 + lvl * 4;
+  const minGap = 180 + (3 - lvl) * 30;
+  let lastX = 250;
+
+  for (let i = 0; i < numRocks; i++) {
+    const rx = lastX + minGap + Math.random() * 260;
+    lastX = rx;
+    if (rx > TRENCH_LENGTH - 200) break;
+
+    const rFloor = Math.random() < 0.65; // floor vs ceiling
+    const rh = 45 + Math.random() * 60;
+    const rw = 70 + Math.random() * 110;
+    const ry = rFloor
+      ? trenchY + trenchH - rh + 8
+      : trenchY - 8;
+
+    rocks.push({ x: rx, y: ry, w: rw, h: rh, floor: rFloor });
+  }
+
+  // Eyes (watchdogs)
+  eyes = [];
+  const numEyes = 2 + lvl;
+  const eyeSpacing = (TRENCH_LENGTH - 400) / (numEyes + 1);
+  for (let i = 0; i < numEyes; i++) {
+    const eyeX = 400 + i * eyeSpacing + Math.random() * 80;
+    const onFloor = i % 2 === 0;
+    const eyeY = onFloor
+      ? trenchY + trenchH + 32
+      : trenchY - 32;
+    // dangerDuration shorter on higher levels
+    const dangerDur = Math.max(1.2, 2.8 - lvl * 0.3) + Math.random() * 0.6;
+    const safeDur   = Math.max(1.5, 3.5 - lvl * 0.2) + Math.random() * 1.0;
+    const cycle     = dangerDur + safeDur;
+
+    // Stagger eyes so they don't all flip simultaneously.
+    // Every eye starts at the BEGINNING of its safe window so that
+    // isDanger === false on frame 0 and the eye renders GREEN — logic
+    // and visual are always in sync from the very first frame.
+    const staggerOffset = (i / numEyes) * cycle;
+    const initTimer     = dangerDur + staggerOffset; // t%cycle >= dangerDur → safe
+
+    eyes.push({
+      x: eyeX, y: eyeY,
+      floor: onFloor,
+      dangerDur,
+      safeDur,
+      timer:      initTimer,
+      isDanger:   false,  // matches timer position above
+      scanAngle:  0,
+      beamAlpha:  0.07,   // safe-phase alpha so first render is correct
+      pupilScale: 0.7,    // safe-phase pupil scale
+      flashTimer: 0,
+    });
+  }
+}
+
+// ════════════════════════════════════════════════════════════
+//  GAME LOOP
+// ════════════════════════════════════════════════════════════
+function startGame() {
+  gameState = 'playing';
+  totalScore = 0;
+  initLevel(1, true);
+  showGameUI(true);
+  SDK.gameplayStart();
+  lastTime = performance.now();
+  if (frameId) cancelAnimationFrame(frameId);
+  frameId = requestAnimationFrame(loop);
+}
+
+function loop(ts) {
+  if (gameState !== 'playing') { frameId = null; return; }
+  const dt = Math.min((ts - lastTime) / 1000, 0.05);
+  lastTime = ts;
+  update(dt);
+  render();
+  // Only re-queue if update() didn't flip gameState to dead/win
+  frameId = gameState === 'playing' ? requestAnimationFrame(loop) : null;
+}
+
+// ════════════════════════════════════════════════════════════
+//  UPDATE
+// ════════════════════════════════════════════════════════════
+function update(dt) {
+  updateSub(dt);
+  updateEyes(dt);       // commits eye.isDanger for every eye this frame
+  updateParticles(dt);
+  checkMilestones();
+  checkWin();
+  updateHUD();
+  updateHUDStatus();    // reads eye.isDanger AFTER all eyes are updated — always in sync
+  score += dt * 5 * level;
+}
+
+function updateSub(dt) {
+  const moving = isMoving();
+  sub.hidden = !moving;
+
+  if (moving) {
+    sub.vx = Math.min(sub.vx + 600 * dt, SUB_SPEED);
+    // Slight drift
+    sub.vy += (Math.sin(performance.now() * 0.001) * 25 - sub.vy * 3) * dt;
+    // Thrust particles
+    if (Math.random() < 0.5) spawnThrustParticle();
+    if (Math.random() < 0.06) playThrust();
+  } else {
+    sub.vx *= Math.pow(0.05, dt);
+    sub.vy *= Math.pow(0.1, dt);
+  }
+
+  sub.x += sub.vx * dt;
+  sub.y += sub.vy * dt;
+
+  // Clamp inside trench with small margin
+  const margin = 20;
+  sub.y = Math.max(trenchY + margin, Math.min(trenchY + trenchH - margin, sub.y));
+
+  // Camera follows sub
+  const targetCamX = sub.x - canvas.width * 0.3;
+  camX += (targetCamX - camX) * Math.min(1, dt * 5);
+  camX = Math.max(0, camX);
+
+  // Angle based on vy
+  sub.angle += (sub.vy * 0.002 - sub.angle) * Math.min(1, dt * 4);
+}
+
+function updateEyes(dt) {
+  eyeAlertFlash = Math.max(0, eyeAlertFlash - dt * 3);
+
+  for (const eye of eyes) {
+    eye.timer += dt;
+    const cycle = eye.dangerDur + eye.safeDur;
+    const t = eye.timer % cycle;
+    const wasDanger = eye.isDanger;
+    eye.isDanger = t < eye.dangerDur;
+
+    // Transition sounds
+    if (wasDanger !== eye.isDanger) {
+      if (eye.isDanger) playDanger();
+      else playSafe();
+    }
+
+    // Scanning beam angle oscillates
+    const frac = eye.isDanger ? t / eye.dangerDur : (t - eye.dangerDur) / eye.safeDur;
+    if (eye.isDanger) {
+      eye.scanAngle = Math.sin(frac * Math.PI * 6) * 0.7;
+      eye.beamAlpha = 0.18 + 0.08 * Math.sin(frac * Math.PI * 8);
+      eye.pupilScale = 1.4 + 0.2 * Math.sin(frac * Math.PI * 4);
+    } else {
+      eye.scanAngle = Math.sin(frac * Math.PI * 2) * 0.3;
+      eye.beamAlpha = 0.07 + 0.03 * Math.sin(frac * Math.PI * 3);
+      eye.pupilScale = 0.7 + 0.1 * Math.sin(frac * Math.PI);
+    }
+
+    // Detection check — early return is safe; status is synced by updateHUDStatus()
+    if (eye.isDanger && !sub.hidden) {
+      if (isSubInBeam(eye)) {
+        triggerCaught();
+        return;
+      }
+    }
+  }
+}
+
+// ── HUD Status Sync ──────────────────────────────────────────
+// Called once per frame at the END of update(), after all eye
+// states have been committed. Reads eye.isDanger directly so
+// it is always in sync — even on the frame triggerCaught() fires.
+function updateHUDStatus() {
+  const anyDanger = eyes.some(e => e.isDanger === true);
+  if (anyDanger) {
+    statusDot.className   = 'status-dot danger';
+    statusLabel.className = 'status-label danger';
+    statusLabel.textContent = 'SCANNING';
+  } else {
+    statusDot.className   = 'status-dot';
+    statusLabel.className = 'status-label';
+    statusLabel.textContent = 'SAFE';
+  }
+}
+
+function isSubInBeam(eye) {
+  // World sub pos
+  const sx = sub.x, sy = sub.y;
+  const dx = sx - eye.x;
+  const dy = sy - eye.y;
+  const dist = Math.sqrt(dx * dx + dy * dy);
+  if (dist > 420) return false; // outside beam range
+
+  // Beam direction: eye points into trench
+  const baseAngle = eye.floor ? -Math.PI / 2 : Math.PI / 2;
+  const beamAngle = baseAngle + eye.scanAngle;
+  const beamDx = Math.cos(beamAngle);
+  const beamDy = Math.sin(beamAngle);
+  const dot = (dx / dist) * beamDx + (dy / dist) * beamDy;
+  const halfSpread = 0.55; // ~32 degrees half-angle
+  return dot > Math.cos(halfSpread);
+}
+
+function triggerCaught() {
+  // gameState MUST be set first — the rAF frame queued at the bottom
+  // of the current loop() tick hasn't fired yet; setting 'dead' here
+  // ensures it hits the guard at the top of loop() and exits without
+  // calling update() or re-queuing itself.
+  gameState = 'dead';
+  const pendingId = frameId;
+  frameId = null;
+  cancelAnimationFrame(pendingId);
+  // Hard-reset all input so the sub stops dead — keyup won't fire
+  // on the dead frame and touchend may never arrive on mobile.
+  keyDown   = false;
+  touchDown = false;
+  dangerFlash.style.background = 'rgba(255,32,32,0.55)';
+  setTimeout(() => { dangerFlash.style.background = 'rgba(255,32,32,0)'; }, 300);
+  playDetected();
+  SDK.gameplayStop();
+  setTimeout(() => showOverlay('dead'), 500);
+}
+
+function checkMilestones() {
+  const progress = sub.x / TRENCH_LENGTH;
+  MILESTONES.forEach((m, i) => {
+    if (!milestonesHit[i] && progress >= m) {
+      milestonesHit[i] = true;
+      score += 500;
+      showMilestone('WAYPOINT ' + Math.round(m * 100) + '% ✓');
+      playMilestone();
+      SDK.happytime();
+    }
+  });
+}
+
+function checkWin() {
+  if (sub.x >= TRENCH_LENGTH) {
+    gameState = 'win';
+    const pendingId = frameId;
+    frameId = null;
+    cancelAnimationFrame(pendingId);
+    keyDown   = false;
+    touchDown = false;
+    totalScore += Math.round(score);
+    playWin();
+    SDK.happytime();
+    SDK.gameplayStop();
+    setTimeout(() => {
+      if (level < 3) showOverlay('levelwin');
+      else showOverlay('win');
+    }, 600);
+  }
+}
+
+function updateParticles(dt) {
+  for (let i = particles.length - 1; i >= 0; i--) {
+    const p = particles[i];
+    p.x += p.vx * dt;
+    p.y += p.vy * dt;
+    p.life -= dt;
+    p.vx *= 0.92;
+    p.vy *= 0.92;
+    if (p.life <= 0) particles.splice(i, 1);
+  }
+}
+
+function spawnThrustParticle() {
+  const spread = (Math.random() - 0.5) * 30;
+  particles.push({
+    x: sub.x - 22, y: sub.y + spread,
+    vx: -60 - Math.random() * 60,
+    vy: (Math.random() - 0.5) * 20,
+    life: 0.4 + Math.random() * 0.3,
+    maxLife: 0.7,
+    r: 2 + Math.random() * 3,
+    col: `hsl(${190 + Math.random() * 40}, 80%, ${50 + Math.random() * 30}%)`,
+  });
+}
+
+function updateHUD() {
+  const depth = Math.round(sub.x / 10);
+  hudDepth.textContent = depth + 'm';
+  hudScore.textContent = Math.round(score);
+  hudLevel.textContent = level;
+  progressFill.style.width = Math.min(100, (sub.x / TRENCH_LENGTH) * 100) + '%';
+}
+
+// ════════════════════════════════════════════════════════════
+//  RENDER
+// ════════════════════════════════════════════════════════════
+function render() {
+  const W = canvas.width, H = canvas.height;
+  ctx2d.clearRect(0, 0, W, H);
+
+  ctx2d.save();
+  ctx2d.translate(-camX, 0);
+
+  drawBackground(W, H);
+  drawTrench(W, H);
+  drawRocks();
+  drawParticles();
+  drawEyes();
+  drawSub();
+  drawGoal();
+
+  ctx2d.restore();
+
+  // Vignette
+  const vg = ctx2d.createRadialGradient(W/2, H/2, H*0.3, W/2, H/2, H*0.85);
+  vg.addColorStop(0, 'rgba(0,0,0,0)');
+  vg.addColorStop(1, 'rgba(0,5,15,0.7)');
+  ctx2d.fillStyle = vg;
+  ctx2d.fillRect(0, 0, W, H);
+}
+
+function drawBackground(W, H) {
+  // Deep water gradient (fixed in screen space via translate offset)
+  const bg = ctx2d.createLinearGradient(camX, 0, camX, H);
+  bg.addColorStop(0, '#010810');
+  bg.addColorStop(0.5, '#020f1e');
+  bg.addColorStop(1, '#010810');
+  ctx2d.fillStyle = bg;
+  ctx2d.fillRect(camX, 0, W, H);
+
+  // Parallax distant particles
+  ctx2d.fillStyle = 'rgba(100,180,220,0.06)';
+  for (let i = 0; i < 60; i++) {
+    const px = ((i * 137.5 + camX * 0.2) % (TRENCH_LENGTH + W));
+    const py = 20 + (i * 73.1) % (H - 40);
+    ctx2d.beginPath();
+    ctx2d.arc(px, py, 1 + (i % 3), 0, Math.PI * 2);
+    ctx2d.fill();
+  }
+}
+
+function drawTrench(W, H) {
+  const tX = 0, tY = trenchY;
+  const tW = TRENCH_LENGTH, tH = trenchH;
+
+  // Trench interior
+  const tGrad = ctx2d.createLinearGradient(0, tY, 0, tY + tH);
+  tGrad.addColorStop(0, '#030f1e');
+  tGrad.addColorStop(0.5, '#041526');
+  tGrad.addColorStop(1, '#030f1e');
+  ctx2d.fillStyle = tGrad;
+  ctx2d.fillRect(tX, tY, tW, tH);
+
+  // Trench walls (top and bottom solid)
+  const wallGrad = ctx2d.createLinearGradient(0, 0, 0, tY);
+  wallGrad.addColorStop(0, '#020c18');
+  wallGrad.addColorStop(1, '#08243a');
+  ctx2d.fillStyle = wallGrad;
+  ctx2d.fillRect(camX, 0, W, tY);
+
+  const wallGrad2 = ctx2d.createLinearGradient(0, tY + tH, 0, H);
+  wallGrad2.addColorStop(0, '#06203a');
+  wallGrad2.addColorStop(1, '#020c18');
+  ctx2d.fillStyle = wallGrad2;
+  ctx2d.fillRect(camX, tY + tH, W, H - tY - tH);
+
+  // Wall edge glow lines
+  ctx2d.save();
+  ctx2d.globalAlpha = 0.15;
+  ctx2d.strokeStyle = '#00aaff';
+  ctx2d.lineWidth = 2;
+  ctx2d.beginPath(); ctx2d.moveTo(camX, tY); ctx2d.lineTo(camX + W, tY); ctx2d.stroke();
+  ctx2d.beginPath(); ctx2d.moveTo(camX, tY + tH); ctx2d.lineTo(camX + W, tY + tH); ctx2d.stroke();
+  ctx2d.restore();
+
+  // Distance markers on floor
+  ctx2d.save();
+  ctx2d.globalAlpha = 0.1;
+  ctx2d.fillStyle = '#00aaff';
+  ctx2d.font = '10px Share Tech Mono, monospace';
+  for (let mx = 500; mx < TRENCH_LENGTH; mx += 500) {
+    ctx2d.fillText(mx / 10 + 'm', mx - 12, tY + tH - 8);
+    ctx2d.fillRect(mx, tY + tH - 4, 1, 4);
+  }
+  ctx2d.restore();
+}
+
+function drawRocks() {
+  for (const r of rocks) {
+    // Check visibility
+    if (r.x + r.w < camX - 20 || r.x > camX + canvas.width + 20) continue;
+
+    ctx2d.save();
+    // Rock shadow glow
+    ctx2d.shadowColor = '#00204040';
+    ctx2d.shadowBlur = 15;
+
+    const rGrad = ctx2d.createLinearGradient(r.x, r.y, r.x, r.y + r.h);
+    rGrad.addColorStop(0, '#1a3a55');
+    rGrad.addColorStop(0.4, '#142d44');
+    rGrad.addColorStop(1, '#0a1e2e');
+    ctx2d.fillStyle = rGrad;
+
+    // Rounded rock shape
+    ctx2d.beginPath();
+    if (r.floor) {
+      // Protrudes from floor
+      ctx2d.moveTo(r.x, r.y + r.h);
+      ctx2d.bezierCurveTo(r.x - 10, r.y + r.h * 0.3, r.x + r.w * 0.1, r.y - 5, r.x + r.w * 0.35, r.y);
+      ctx2d.bezierCurveTo(r.x + r.w * 0.65, r.y - 5, r.x + r.w * 0.9, r.y + r.h * 0.2, r.x + r.w, r.y + r.h);
+      ctx2d.closePath();
+    } else {
+      // Protrudes from ceiling
+      ctx2d.moveTo(r.x, r.y);
+      ctx2d.bezierCurveTo(r.x - 10, r.y + r.h * 0.7, r.x + r.w * 0.1, r.y + r.h + 5, r.x + r.w * 0.35, r.y + r.h);
+      ctx2d.bezierCurveTo(r.x + r.w * 0.65, r.y + r.h + 5, r.x + r.w * 0.9, r.y + r.h * 0.8, r.x + r.w, r.y);
+      ctx2d.closePath();
+    }
+    ctx2d.fill();
+
+    // Highlight edge
+    ctx2d.globalAlpha = 0.25;
+    ctx2d.strokeStyle = '#3a7a9a';
+    ctx2d.lineWidth = 1.5;
+    ctx2d.stroke();
+    ctx2d.restore();
+
+    // Sub nearby hiding glow
+    const dx = sub.x - (r.x + r.w / 2);
+    const dy = sub.y - (r.y + r.h / 2);
+    const dist = Math.sqrt(dx * dx + dy * dy);
+    if (sub.hidden && dist < 120) {
+      ctx2d.save();
+      ctx2d.globalAlpha = 0.15 * (1 - dist / 120);
+      const hg = ctx2d.createRadialGradient(r.x + r.w/2, r.y + r.h/2, 0, r.x + r.w/2, r.y + r.h/2, 80);
+      hg.addColorStop(0, '#00ff88');
+      hg.addColorStop(1, 'transparent');
+      ctx2d.fillStyle = hg;
+      ctx2d.fillRect(r.x - 20, r.y - 20, r.w + 40, r.h + 40);
+      ctx2d.restore();
+    }
+  }
+}
+
+function drawEyes() {
+  const now = performance.now() * 0.001;
+  for (const eye of eyes) {
+    const col = eye.isDanger ? '#ff2020' : '#00ff88';
+    const glowCol = eye.isDanger ? 'rgba(255,32,32,' : 'rgba(0,255,136,';
+
+    // Beam
+    ctx2d.save();
+    const baseAngle = eye.floor ? -Math.PI / 2 : Math.PI / 2;
+    const beamAngle = baseAngle + eye.scanAngle;
+    const beamLen = 430;
+    const halfSpread = 0.55;
+
+    ctx2d.globalAlpha = eye.beamAlpha;
+    const beamGrad = ctx2d.createLinearGradient(
+      eye.x, eye.y,
+      eye.x + Math.cos(beamAngle) * beamLen,
+      eye.y + Math.sin(beamAngle) * beamLen
+    );
+    beamGrad.addColorStop(0, col);
+    beamGrad.addColorStop(1, 'transparent');
+
+    ctx2d.fillStyle = beamGrad;
+    ctx2d.beginPath();
+    ctx2d.moveTo(eye.x, eye.y);
+    ctx2d.arc(eye.x, eye.y, beamLen, beamAngle - halfSpread, beamAngle + halfSpread);
+    ctx2d.closePath();
+    ctx2d.fill();
+    ctx2d.restore();
+
+    // Eye outer glow
+    ctx2d.save();
+    ctx2d.shadowColor = col;
+    ctx2d.shadowBlur = eye.isDanger ? 40 : 20;
+
+    // Eye sclera
+    const eyeR = 28;
+    ctx2d.beginPath();
+    ctx2d.arc(eye.x, eye.y, eyeR, 0, Math.PI * 2);
+    ctx2d.fillStyle = '#060f1a';
+    ctx2d.fill();
+    ctx2d.strokeStyle = col;
+    ctx2d.lineWidth = 3;
+    ctx2d.stroke();
+
+    // Iris
+    const irisR = 16;
+    const irisGrad = ctx2d.createRadialGradient(eye.x, eye.y, 2, eye.x, eye.y, irisR);
+    irisGrad.addColorStop(0, col);
+    irisGrad.addColorStop(0.6, eye.isDanger ? '#aa0000' : '#006633');
+    irisGrad.addColorStop(1, '#000');
+    ctx2d.beginPath();
+    ctx2d.arc(eye.x, eye.y, irisR, 0, Math.PI * 2);
+    ctx2d.fillStyle = irisGrad;
+    ctx2d.fill();
+
+    // Pupil (tracks into trench)
+    const pupilR = 7 * eye.pupilScale;
+    const pupilOff = 5;
+    const px = eye.x + Math.cos(beamAngle) * pupilOff;
+    const py = eye.y + Math.sin(beamAngle) * pupilOff;
+    ctx2d.beginPath();
+    ctx2d.arc(px, py, pupilR, 0, Math.PI * 2);
+    ctx2d.fillStyle = '#000';
+    ctx2d.fill();
+
+    // Specular highlight
+    ctx2d.beginPath();
+    ctx2d.arc(eye.x - 6, eye.y - 6, 4, 0, Math.PI * 2);
+    ctx2d.fillStyle = 'rgba(255,255,255,0.3)';
+    ctx2d.fill();
+
+    // Mechanical mount
+    const mntH = eye.floor ? 28 : -28;
+    ctx2d.fillStyle = '#0a1e2e';
+    ctx2d.strokeStyle = '#1a3a5a';
+    ctx2d.lineWidth = 2;
+    ctx2d.fillRect(eye.x - 10, eye.floor ? eye.y + eyeR - 4 : eye.y - eyeR - 24 + 4, 20, 24);
+    ctx2d.strokeRect(eye.x - 10, eye.floor ? eye.y + eyeR - 4 : eye.y - eyeR - 24 + 4, 20, 24);
+
+    ctx2d.restore();
+  }
+}
+
+function drawSub() {
+  ctx2d.save();
+  ctx2d.translate(sub.x, sub.y);
+  ctx2d.rotate(sub.angle);
+
+  const alpha = sub.hidden ? 0.45 : 1.0;
+  ctx2d.globalAlpha = alpha;
+
+  if (!sub.hidden) {
+    ctx2d.shadowColor = '#00aaff';
+    ctx2d.shadowBlur = 20;
+  }
+
+  // Hull
+  const hullGrad = ctx2d.createLinearGradient(-22, -8, -22, 8);
+  hullGrad.addColorStop(0, '#c8e8ff');
+  hullGrad.addColorStop(0.4, '#7ab8d8');
+  hullGrad.addColorStop(1, '#3a7898');
+  ctx2d.fillStyle = hullGrad;
+  ctx2d.beginPath();
+  ctx2d.ellipse(0, 0, 22, 9, 0, 0, Math.PI * 2);
+  ctx2d.fill();
+
+  // Conning tower
+  ctx2d.fillStyle = '#5a98b8';
+  ctx2d.beginPath();
+  ctx2d.ellipse(-2, -10, 6, 4, 0, 0, Math.PI * 2);
+  ctx2d.fill();
+
+  // Nose cone
+  ctx2d.fillStyle = '#00ccff';
+  ctx2d.beginPath();
+  ctx2d.moveTo(22, 0);
+  ctx2d.bezierCurveTo(28, -4, 32, -2, 34, 0);
+  ctx2d.bezierCurveTo(32, 2, 28, 4, 22, 0);
+  ctx2d.closePath();
+  ctx2d.fill();
+
+  // Propeller blades
+  const propSpin = (performance.now() * 0.015 * (isMoving() ? 3 : 0.5)) % (Math.PI * 2);
+  ctx2d.save();
+  ctx2d.translate(-22, 0);
+  ctx2d.rotate(propSpin);
+  ctx2d.fillStyle = '#3a7898';
+  for (let i = 0; i < 3; i++) {
+    ctx2d.save();
+    ctx2d.rotate((i / 3) * Math.PI * 2);
+    ctx2d.beginPath();
+    ctx2d.ellipse(0, -7, 2.5, 6, 0.3, 0, Math.PI * 2);
+    ctx2d.fill();
+    ctx2d.restore();
+  }
+  ctx2d.restore();
+
+  // Porthole
+  ctx2d.fillStyle = '#00ffee22';
+  ctx2d.strokeStyle = '#00ffee88';
+  ctx2d.lineWidth = 1;
+  ctx2d.beginPath();
+  ctx2d.arc(5, 0, 4, 0, Math.PI * 2);
+  ctx2d.fill();
+  ctx2d.stroke();
+
+  // Running light (blink)
+  if (!sub.hidden && Math.sin(performance.now() * 0.008) > 0) {
+    ctx2d.fillStyle = '#00ff88';
+    ctx2d.shadowColor = '#00ff88';
+    ctx2d.shadowBlur = 10;
+    ctx2d.beginPath();
+    ctx2d.arc(18, -5, 2, 0, Math.PI * 2);
+    ctx2d.fill();
+  }
+
+  ctx2d.restore();
+}
+
+function drawGoal() {
+  const gx = TRENCH_LENGTH - 80;
+  const gy = trenchY + trenchH / 2;
+  const now = performance.now() * 0.001;
+
+  // Pulse ring
+  const pulseR = 35 + Math.sin(now * 3) * 8;
+  ctx2d.save();
+  ctx2d.globalAlpha = 0.2 + 0.1 * Math.sin(now * 3);
+  ctx2d.strokeStyle = '#00ff88';
+  ctx2d.lineWidth = 2;
+  ctx2d.beginPath();
+  ctx2d.arc(gx, gy, pulseR, 0, Math.PI * 2);
+  ctx2d.stroke();
+  ctx2d.restore();
+
+  // Goal beacon
+  ctx2d.save();
+  ctx2d.shadowColor = '#00ff88';
+  ctx2d.shadowBlur = 30;
+  const bGrad = ctx2d.createRadialGradient(gx, gy, 0, gx, gy, 24);
+  bGrad.addColorStop(0, '#00ff88');
+  bGrad.addColorStop(0.5, '#00cc66');
+  bGrad.addColorStop(1, '#004422');
+  ctx2d.fillStyle = bGrad;
+  ctx2d.beginPath();
+  ctx2d.arc(gx, gy, 18, 0, Math.PI * 2);
+  ctx2d.fill();
+
+  // Target reticle
+  ctx2d.strokeStyle = '#ffffff44';
+  ctx2d.lineWidth = 1.5;
+  ctx2d.beginPath(); ctx2d.moveTo(gx - 28, gy); ctx2d.lineTo(gx - 22, gy); ctx2d.stroke();
+  ctx2d.beginPath(); ctx2d.moveTo(gx + 22, gy); ctx2d.lineTo(gx + 28, gy); ctx2d.stroke();
+  ctx2d.beginPath(); ctx2d.moveTo(gx, gy - 28); ctx2d.lineTo(gx, gy - 22); ctx2d.stroke();
+  ctx2d.beginPath(); ctx2d.moveTo(gx, gy + 22); ctx2d.lineTo(gx, gy + 28); ctx2d.stroke();
+
+  // Label
+  ctx2d.globalAlpha = 0.7 + 0.3 * Math.sin(now * 2);
+  ctx2d.fillStyle = '#00ff88';
+  ctx2d.font = `bold ${10}px Orbitron, monospace`;
+  ctx2d.textAlign = 'center';
+  ctx2d.fillText('TARGET', gx, gy + 36);
+  ctx2d.restore();
+}
+
+function drawParticles() {
+  for (const p of particles) {
+    const a = p.life / p.maxLife;
+    ctx2d.save();
+    ctx2d.globalAlpha = a * 0.7;
+    ctx2d.fillStyle = p.col;
+    ctx2d.beginPath();
+    ctx2d.arc(p.x, p.y, p.r * a, 0, Math.PI * 2);
+    ctx2d.fill();
+    ctx2d.restore();
+  }
+}
+
+// ════════════════════════════════════════════════════════════
+//  UI HELPERS
+// ════════════════════════════════════════════════════════════
+function showGameUI(show) {
+  hud.classList.toggle('hidden', !show);
+  eyeStatusEl.classList.toggle('hidden', !show);
+  progressBar.classList.toggle('hidden', !show);
+  tapHint.classList.toggle('hidden', !show);
+}
+
+function setScreen(name) {
+  menuScreen.classList.add('hidden');
+  overlayScreen.classList.add('hidden');
+  if (name === 'menu') menuScreen.classList.remove('hidden');
+  if (name === 'overlay') overlayScreen.classList.remove('hidden');
+}
+
+function showOverlay(type) {
+  if (type === 'dead') {
+    overlayIcon.textContent = '💀';
+    overlayTitle.textContent = 'DETECTED';
+    overlayTitle.style.color = '#ff2020';
+    overlaySub.textContent = 'The Watchdog spotted your movement.';
+    overlayStats.innerHTML = `DEPTH REACHED: ${Math.round(sub.x / 10)}m<br>SCORE: ${Math.round(score)}`;
+    document.getElementById('btnRestart').textContent = '↺ RETRY MISSION';
+  } else if (type === 'levelwin') {
+    overlayIcon.textContent = '🎯';
+    overlayTitle.textContent = 'SECTOR CLEAR';
+    overlayTitle.style.color = '#00ff88';
+    overlaySub.textContent = 'Proceed to next depth sector.';
+    overlayStats.innerHTML = `SECTOR SCORE: ${Math.round(score)}<br>TOTAL: ${totalScore}`;
+    document.getElementById('btnRestart').textContent = '▶ NEXT SECTOR';
+  } else {
+    overlayIcon.textContent = '🏆';
+    overlayTitle.textContent = 'MISSION COMPLETE';
+    overlayTitle.style.color = '#ffcc00';
+    overlaySub.textContent = 'All sectors sabotaged. You are a legend.';
+    overlayStats.innerHTML = `FINAL SCORE: ${totalScore + Math.round(score)}<br>ALL 3 SECTORS CLEARED`;
+    document.getElementById('btnRestart').textContent = '▶ PLAY AGAIN';
+  }
+  showGameUI(false);
+  setScreen('overlay');
+}
+
+function showMilestone(text) {
+  milestonePopup.textContent = text;
+  milestonePopup.classList.add('show');
+  clearTimeout(milestonePopup._t);
+  milestonePopup._t = setTimeout(() => milestonePopup.classList.remove('show'), 1800);
+}
+
+// ════════════════════════════════════════════════════════════
+//  INPUT
+// ════════════════════════════════════════════════════════════
+document.addEventListener('keydown', (e) => {
+  if (e.code !== 'Space' && e.key !== ' ') return;
+  e.preventDefault();
+
+  // ── Overlay keyboard accessibility ──────────────────────
+  // If the game is over or won and the overlay is visible,
+  // SPACE activates the Retry button — but ONLY on a fresh keypress.
+  //
+  // e.repeat is true for every auto-repeat event the browser fires
+  // while SPACE is held. If the player dies while holding SPACE those
+  // rapid-fire repeats would hit btnRestart.click() dozens of times
+  // per second, instantly ghost-restarting the game. Blocking on
+  // e.repeat means only a deliberate new press after releasing the
+  // key can trigger retry.
+  if (gameState === 'dead' || gameState === 'win') {
+    if (!e.repeat) document.getElementById('btnRestart').click();
+    return;
+  }
+
+  // ── Normal gameplay thrust ───────────────────────────────
+  // Same guard: if the player retried while still holding SPACE,
+  // ignore the continuing auto-repeat events so the sub doesn't
+  // immediately thrust before they've intentionally moved again.
+  if (!e.repeat) keyDown = true;
+  initAudio();
+});
+document.addEventListener('keyup', (e) => {
+  // Always clear keyDown regardless of gameState so thrust
+  // never bleeds into a retry or the next level on re-spawn.
+  if (e.code === 'Space' || e.key === ' ') keyDown = false;
+});
+
+canvas.addEventListener('touchstart', (e) => {
+  e.preventDefault();
+  // On dead/win, a tap should trigger the retry button, not move the sub.
+  if (gameState === 'dead' || gameState === 'win') {
+    document.getElementById('btnRestart').click();
+    return;
+  }
+  touchDown = true;
+  initAudio();
+}, { passive: false });
+canvas.addEventListener('touchend', (e) => {
+  e.preventDefault();
+  touchDown = false;
+}, { passive: false });
+canvas.addEventListener('touchcancel', () => { touchDown = false; });
+
+// ════════════════════════════════════════════════════════════
+//  BUTTONS
+// ════════════════════════════════════════════════════════════
+document.getElementById('btnStart').addEventListener('click', () => {
+  initAudio();
+  setScreen('none');
+  startGame();
+});
+document.getElementById('btnRestart').addEventListener('click', () => {
+  initAudio();
+  setScreen('none');
+  // Always clear input state before any restart so the sub never
+  // inherits a held key or touch from before the death/win screen.
+  keyDown   = false;
+  touchDown = false;
+  if (gameState === 'win' || level >= 3) {
+    startGame();
+  } else if (gameState === 'dead') {
+    gameState = 'playing';
+    initLevel(level, true);
+    showGameUI(true);
+    SDK.gameplayStart();
+    lastTime = performance.now();
+    frameId = requestAnimationFrame(loop);
+  } else {
+    // level win — next level
+    totalScore += Math.round(score);
+    gameState = 'playing';
+    initLevel(level + 1, true);
+    showGameUI(true);
+    SDK.gameplayStart();
+    lastTime = performance.now();
+    frameId = requestAnimationFrame(loop);
+  }
+});
+document.getElementById('btnMenu').addEventListener('click', () => {
+  gameState = 'menu';
+  cancelAnimationFrame(frameId);
+  SDK.gameplayStop();
+  showGameUI(false);
+  touchDown = false; keyDown = false;
+  setScreen('menu');
+});
+
+// ════════════════════════════════════════════════════════════
+//  BOOT
+// ════════════════════════════════════════════════════════════
+setScreen('menu');
+// Draw a static frame so canvas isn't blank
+resize();
+initLevel(1, true);
+render();
+</script>
+</body>
+</html>
