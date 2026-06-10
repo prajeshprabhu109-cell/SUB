@@ -1,0 +1,813 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='16' cy='16' r='16' fill='%23000a1e'/%3E%3Cpolygon points='22,16 10,10 13,16 10,22' fill='%2300b8ff'/%3E%3Cellipse cx='9' cy='16' rx='3' ry='1.5' fill='%230060ff' opacity='.7'/%3E%3C/svg%3E">
+<title>Orbital Tether: Space Slingshot</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:#000;overflow:hidden;font-family:'Courier New',monospace;user-select:none;-webkit-user-select:none}
+canvas{display:block;position:fixed;top:0;left:0}
+#hud{position:fixed;top:0;left:0;width:100%;display:flex;justify-content:space-between;padding:14px 22px;pointer-events:none;z-index:10}
+.hp{background:rgba(0,10,30,0.8);border:1px solid rgba(0,180,255,0.3);border-radius:6px;padding:7px 16px;color:#00b8ff;font-size:10px;letter-spacing:3px;text-transform:uppercase}
+.hv{font-size:24px;font-weight:bold;color:#fff;letter-spacing:2px;text-shadow:0 0 12px #00b8ff;margin-top:1px}
+#hint{position:fixed;bottom:50px;left:50%;transform:translateX(-50%);display:flex;align-items:center;gap:12px;background:rgba(0,8,25,0.85);border:1px solid rgba(0,180,255,0.4);border-radius:8px;padding:10px 22px;color:#00b8ff;font-size:11px;letter-spacing:3px;text-transform:uppercase;pointer-events:none;z-index:10;transition:opacity 1s}
+#hint.gone{opacity:0;pointer-events:none}
+.kicon{display:inline-flex;align-items:center;justify-content:center;min-width:68px;height:22px;border:1.5px solid #00b8ff;border-radius:3px;font-size:9px;letter-spacing:1px;padding:0 6px;box-shadow:0 0 8px rgba(0,180,255,0.4),inset 0 -2px 0 rgba(0,180,255,0.2)}
+#pips{position:fixed;bottom:18px;left:50%;transform:translateX(-50%);display:flex;gap:8px;pointer-events:none;z-index:10}
+.pip{width:28px;height:5px;border-radius:3px;background:rgba(0,180,255,0.1);border:1px solid rgba(0,180,255,0.2)}
+.pip.done{background:#00b8ff;box-shadow:0 0 8px #00b8ff}
+.pip.cur{background:rgba(0,180,255,0.4);animation:pp .9s ease-in-out infinite}
+@keyframes pp{0%,100%{opacity:1}50%{opacity:.25}}
+#end{position:fixed;top:0;left:0;width:100%;height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;opacity:0;pointer-events:none;z-index:20;transition:opacity .5s;background:rgba(0,5,20,0)}
+#end.show{opacity:1;pointer-events:all;background:rgba(0,5,20,0.9)}
+#etitle{font-size:54px;letter-spacing:10px;color:#fff;text-shadow:0 0 40px #00b8ff,0 0 80px #00b8ff;text-transform:uppercase;transform:translateY(-15px);transition:transform .6s .1s}
+#end.show #etitle{transform:none}
+#esub{font-size:12px;letter-spacing:4px;color:#00b8ff;text-transform:uppercase;margin-top:12px}
+#escore{font-size:17px;color:rgba(255,255,255,0.65);letter-spacing:3px;margin-top:20px}
+#rbtn{margin-top:48px;background:transparent;border:2px solid #00b8ff;color:#00b8ff;font-family:'Courier New',monospace;font-size:clamp(9px,2.5vw,12px);letter-spacing:clamp(2px,1vw,5px);text-transform:uppercase;padding:14px clamp(20px,5vw,48px);cursor:pointer;border-radius:4px;transition:all .2s;white-space:nowrap;max-width:90vw}
+#rbtn:hover{background:rgba(0,180,255,0.12);box-shadow:0 0 30px rgba(0,180,255,0.4)}
+#mbtn{position:fixed;bottom:16px;right:20px;pointer-events:all;background:rgba(0,8,25,0.75);border:1px solid rgba(0,180,255,0.3);color:#00b8ff;font-size:16px;width:36px;height:36px;border-radius:50%;cursor:pointer;display:flex;align-items:center;justify-content:center;z-index:30}
+#mbtn.off{color:rgba(0,180,255,0.2);border-color:rgba(0,180,255,0.1)}
+#flash{position:fixed;top:0;left:0;width:100%;height:100%;pointer-events:none;z-index:8;opacity:0;background:#00b8ff;transition:opacity .05s}
+#orient{display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:#000a1e;z-index:100;flex-direction:column;align-items:center;justify-content:center;gap:24px}
+#orient svg{animation:rot 2s ease-in-out infinite}
+@keyframes rot{0%,100%{transform:rotate(0deg)}40%,60%{transform:rotate(90deg)}}
+#orient p{color:#00b8ff;font-size:12px;letter-spacing:3px;text-transform:uppercase;text-align:center;line-height:1.8}
+@media (max-width:767px) and (orientation:portrait){#orient{display:flex}}
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div id="hud">
+  <div class="hp">Score<div class="hv" id="hs">0</div></div>
+  <div class="hp" style="text-align:center">Sector<div class="hv" id="hse">1/7</div></div>
+  <div class="hp" style="text-align:right">Orbs<div class="hv" id="ho">0</div></div>
+</div>
+<div id="hint"><div class="kicon">SPACE</div><span>HOLD TO TETHER &amp; SWING &nbsp;|&nbsp;</span><div class="kicon">R</div><span>&nbsp;RESTART &nbsp;|&nbsp;</span><div class="kicon">M</div><span>&nbsp;MUTE</span></div>
+<div id="pips"></div>
+<div id="flash"></div>
+<div id="end">
+  <div id="etitle">GAME OVER</div>
+  <div id="esub">Satellite lost in deep space</div>
+  <div id="escore"></div>
+  <button id="rbtn">↺ &nbsp; RELAUNCH</button>
+  <div style="margin-top:14px;font-size:10px;letter-spacing:3px;color:rgba(0,184,255,0.45);text-transform:uppercase">Space to relaunch &nbsp;·&nbsp; R to restart</div>
+</div>
+<button id="mbtn">♪</button>
+<div id="orient">
+  <svg width="64" height="64" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <rect x="18" y="8" width="28" height="48" rx="4" stroke="#00b8ff" stroke-width="2.5"/>
+    <circle cx="32" cy="50" r="2.5" fill="#00b8ff" opacity=".6"/>
+    <path d="M44 32 L54 32 M50 28 L54 32 L50 36" stroke="#00b8ff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+  </svg>
+  <p>Rotate your device<br>to landscape mode<br>to play</p>
+</div>
+
+<script>
+'use strict';
+// ─── SDK ─────────────────────────────────────────────────────────────────────
+// Load SDK script
+(()=>{const s=document.createElement('script');s.src='https://sdk.crazygames.com/crazygames-sdk-v3.js';document.head.appendChild(s)})();
+
+let _sdk=null;
+
+// Safe caller — only fires if SDK is initialised
+function cg(path){
+  try{
+    if(!_sdk)return;
+    const parts=path.split('.');
+    let o=_sdk;
+    for(let i=0;i<parts.length-1;i++){o=o[parts[i]];if(!o)return;}
+    if(typeof o[parts[parts.length-1]]==='function')o[parts[parts.length-1]]();
+  }catch(e){}
+}
+
+// Initialise SDK: init() MUST complete before any other SDK calls
+function initSDK(){
+  (function poll(){
+    if(window.CrazyGames&&window.CrazyGames.SDK){
+      const SDK=window.CrazyGames.SDK;
+      SDK.init().then(()=>{
+        _sdk=SDK;  // only now is SDK safe to use
+        try{SDK.game.loadingStart();}catch(e){}
+        try{SDK.game.loadingStop();}catch(e){}
+        // Hook platform speaker button → drive our audio directly
+        try{SDK.game.on('muteGame',  ()=>setMute(true)); }catch(e){}
+        try{SDK.game.on('unmuteGame',()=>setMute(false));}catch(e){}
+      }).catch(()=>{
+        _sdk=SDK;
+      });
+    } else {
+      setTimeout(poll,50);
+    }
+  })();
+}
+
+// ─── AUDIO ───────────────────────────────────────────────────────────────────
+let actx=null,gGain,muted=false;
+function initAudio(){if(actx)return;actx=new(window.AudioContext||window.webkitAudioContext)();gGain=actx.createGain();gGain.gain.value=0.4;gGain.connect(actx.destination);}
+function resumeCtx(){if(actx&&actx.state==='suspended')actx.resume();}
+function beep(type,f0,f1,dur,vol,delay=0){
+  if(muted||!actx)return;
+  const t=actx.currentTime+delay;
+  const o=actx.createOscillator(),g=actx.createGain();
+  o.type=type;o.frequency.setValueAtTime(f0,t);
+  if(f1)o.frequency.exponentialRampToValueAtTime(f1,t+dur);
+  g.gain.setValueAtTime(vol,t);g.gain.exponentialRampToValueAtTime(0.001,t+dur);
+  o.connect(g);g.connect(gGain);o.start(t);o.stop(t+dur+0.02);
+}
+const SFX={
+  tether:()=>{beep('sawtooth',280,600,0.06,0.5);beep('sine',580,220,0.22,0.22,0.06);},
+  release:()=>{beep('sine',500,260,0.2,0.3);},
+  collect:()=>{[900,1350,1800].forEach((f,i)=>beep('sine',f,f*1.05,0.17,0.18,i*0.065));},
+  die:()=>{beep('sawtooth',160,30,0.8,0.65);},
+  clear:()=>{[523,659,784,1047].forEach((f,i)=>beep('triangle',f,f,0.28,0.22,i*0.1));},
+};
+let droneNode=null;
+function startDrone(){
+  if(!actx||droneNode)return;
+  droneNode=actx.createOscillator();const dg=actx.createGain();
+  droneNode.type='sine';droneNode.frequency.value=50;
+  dg.gain.value=muted?0:0.055;droneNode.connect(dg);dg.connect(gGain);
+  droneNode.start();window._droneGain=dg;
+}
+
+// ─── CANVAS ──────────────────────────────────────────────────────────────────
+const canvas=document.getElementById('c');
+const ctx=canvas.getContext('2d');
+let W=0,H=0;
+function resize(){W=canvas.width=innerWidth;H=canvas.height=innerHeight;}
+resize();addEventListener('resize',()=>{resize();});
+
+// ─── PARTICLES ───────────────────────────────────────────────────────────────
+let particles=[];
+function burst(x,y,col,n,spd,life){
+  for(let i=0;i<n;i++){
+    const a=Math.random()*Math.PI*2,s=spd*(0.3+Math.random()*0.9);
+    particles.push({x,y,vx:Math.cos(a)*s,vy:Math.sin(a)*s,life,ml:life,r:Math.random()*3+1,col});
+  }
+}
+function drawParticles(dt){
+  particles=particles.filter(p=>p.life>0);
+  particles.forEach(p=>{
+    p.x+=p.vx*dt*60;p.y+=p.vy*dt*60;p.vx*=0.96;p.vy*=0.96;p.life-=dt;
+    const a=Math.max(0,p.life/p.ml);
+    ctx.globalAlpha=a;ctx.fillStyle=p.col;
+    ctx.beginPath();ctx.arc(p.x,p.y,p.r*a,0,Math.PI*2);ctx.fill();
+  });
+  ctx.globalAlpha=1;
+}
+
+// ─── STARS ───────────────────────────────────────────────────────────────────
+let stars=[];
+function mkStars(){
+  stars=Array.from({length:250},()=>({
+    lx:Math.random()*5000, y:Math.random()*H,
+    r:Math.random()*1.4+0.2, boff:Math.random()*Math.PI*2, bspd:Math.random()*0.5+0.05
+  }));
+}
+mkStars();
+
+// ─── SPACE DUST ───────────────────────────────────────────────────────────────
+let dust=[];
+function mkDust(){
+  dust=Array.from({length:120},()=>({
+    lx: Math.random()*6000,
+    y:  Math.random()*2000,   // tall virtual strip, wraps to screen
+    r:  Math.random()*1.0+0.3,
+    a:  Math.random()*0.18+0.04,
+    speed: Math.random()*0.25+0.08   // relative scroll multiplier
+  }));
+}
+mkDust();
+
+// ═══════════════════════════════════════════════════════════════════════════
+// GAME DESIGN
+// ═══════════════════════════════════════════════════════════════════════════
+// - World is WIDE OPEN (no tunnel walls). The "tunnel" is just a visual guide.
+// - Planets are big, spread out, easy to swing around.
+// - Tether attaches to nearest planet within range.
+// - Physics: true polar orbit. On press we lock arm length and angular velocity.
+//   Each frame we advance angle, satellite position is planet + polar coords.
+//   Release fires satellite along tangent at current swing speed.
+// - Camera follows satellite smoothly.
+// - Goal: reach the finish portal at the end of each sector.
+// ═══════════════════════════════════════════════════════════════════════════
+
+const TOTAL_SECTORS = 7;
+
+// World dimensions (per sector)
+function sectorWidth(){ return Math.max(W*2.0, 1600); }
+
+// Planet generation
+function makeSector(idx){
+  const sw = sectorWidth();
+  const n = 4; // planets per sector
+  const step = sw / (n+1);
+  const planets = [], orbs = [];
+  const baseHue = [200,170,130,220,100,260,50][idx%7];
+
+  for(let i=0;i<n;i++){
+    // spread planets vertically across the full screen height
+    const wx = step*(i+1) + (Math.random()-0.5)*step*0.3;
+    const wy = H*0.18 + Math.random()*(H*0.64);  // top 18% to bottom 18%
+    const radius = 35 + Math.random()*30 + idx*3;
+    const hue = baseHue + i*20;
+    // tether snap range: generous so player can always reach
+    const tRange = radius + 220 + Math.random()*80;
+
+    planets.push({wx, wy, radius, hue, tRange});
+
+    // orbs near each planet
+    const no = 3 + Math.floor(Math.random()*3);
+    for(let j=0;j<no;j++){
+      const ang = Math.random()*Math.PI*2;
+      const dist = radius + 40 + Math.random()*120;
+      orbs.push({
+        wx: wx + Math.cos(ang)*dist,
+        wy: Math.max(30, Math.min(H-30, wy + Math.sin(ang)*dist)),
+        got:false, t:Math.random()*Math.PI*2
+      });
+    }
+  }
+
+  const finishX = sw + step*0.5;
+  return {planets, orbs, finishX};
+}
+
+// ─── State ───────────────────────────────────────────────────────────────────
+let camX=0, camY=0;         // camera world position (top-left of screen)
+let sat={};
+let trail=[];
+const TRAIL=60;
+let planets=[], orbs=[], finishX=0;
+let sector=1, score=0, totalOrbs=0;
+let maxSatX=0;  // furthest-right world X the satellite has reached this sector
+let gstate='playing';       // playing|dead|win
+let hintTimer=7, firstInput=false, cgDone=false;
+
+// Tether state
+let tethered=false;
+let tPlanet=null;
+let tArmLen=0;
+let tAngle=0;     // angle (sat relative to planet), radians
+let tOmega=0;     // angular velocity rad/s, + = CCW
+
+const MIN_OMEGA = 1.5;    // minimum swing speed rad/s (so it always swings)
+const OMEGA_ACCEL = 1.0;  // how fast omega grows while held
+const MAX_OMEGA = 5.5;
+const MAX_SPD = 900;      // max free-flight px/s
+
+function initGame(){
+  score=0;totalOrbs=0;sector=1;gstate='playing';
+  firstInput=false;cgDone=false;hintTimer=7;
+  tethered=false;tPlanet=null;
+  trail=[];particles=[];
+  camX=0;camY=0;
+
+  const sd=makeSector(0);
+  planets=sd.planets;orbs=sd.orbs;finishX=sd.finishX;
+
+  sat={
+    wx:W*0.1,     // start left of screen
+    wy:H*0.5,
+    vx:240,       // moving right
+    vy:0,
+    alive:true
+  };
+
+  maxSatX=sat.wx;
+  document.getElementById('end').classList.remove('show');
+  cg('gameplay.gameplayStart');   // open a new gameplay session on every restart
+  updHUD();buildPips();
+}
+
+function loadSector(idx){
+  const sd=makeSector(idx);
+  planets=sd.planets;orbs=sd.orbs;finishX=sd.finishX;
+  camX=0;camY=0;
+  tethered=false;tPlanet=null;trail=[];
+  sat.wx=W*0.08;
+  sat.wy=H*0.5+(Math.random()-0.5)*H*0.2;
+  sat.vx=260+idx*15;
+  sat.vy=(Math.random()-0.5)*100;
+  maxSatX=sat.wx;
+}
+
+// ─── Helpers ─────────────────────────────────────────────────────────────────
+function sx(wx){return wx-camX;}  // world x → screen x
+function sy(wy){return wy-camY;}  // world y → screen y
+
+function nearestPlanet(){
+  let best=null,bd=Infinity;
+  for(const p of planets){
+    const dx=p.wx-sat.wx, dy=p.wy-sat.wy;
+    const d=Math.sqrt(dx*dx+dy*dy);
+    if(d<p.tRange && d<bd){bd=d;best=p;}
+  }
+  return best;
+}
+
+// ─── Physics ─────────────────────────────────────────────────────────────────
+function doTetherAttach(){
+  const p=nearestPlanet();
+  if(!p)return false;
+
+  const dx=sat.wx-p.wx, dy=sat.wy-p.wy;
+  const dist=Math.sqrt(dx*dx+dy*dy);
+
+  tPlanet=p;
+  tArmLen=Math.max(dist, p.radius+12);
+  tAngle=Math.atan2(dy,dx);
+
+  // Decompose current velocity into tangential component
+  // tangent direction (CCW): (-sin θ, cos θ)
+  const sinA=Math.sin(tAngle), cosA=Math.cos(tAngle);
+  const vtan = sat.vx*(-sinA) + sat.vy*cosA;   // positive = CCW
+  let omega = vtan/tArmLen;
+
+  // Enforce minimum so there's always a swing
+  if(Math.abs(omega)<MIN_OMEGA){
+    omega = omega<0 ? -MIN_OMEGA : MIN_OMEGA;
+  }
+  tOmega=omega;
+  return true;
+}
+
+function tickSat(dt){
+  if(!sat.alive)return;
+
+  if(tethered && tPlanet){
+    // ── SWING: pure circular orbit ──────────────────────────────────────────
+    // Speed up while held (slingshot wind-up)
+    const sign=tOmega>=0?1:-1;
+    tOmega=sign*Math.min(Math.abs(tOmega)+OMEGA_ACCEL*dt, MAX_OMEGA);
+
+    // Advance angle
+    tAngle += tOmega*dt;
+
+    // Set position on circle
+    sat.wx = tPlanet.wx + Math.cos(tAngle)*tArmLen;
+    sat.wy = tPlanet.wy + Math.sin(tAngle)*tArmLen;
+
+    // Velocity = tangential (for correct release)
+    const sinA=Math.sin(tAngle), cosA=Math.cos(tAngle);
+    sat.vx = -sinA * tOmega * tArmLen;
+    sat.vy =  cosA * tOmega * tArmLen;
+
+  } else {
+    // ── FREE FLIGHT ─────────────────────────────────────────────────────────
+    // Very mild gravity toward nearest planet (optional feel, subtle)
+    // Kept OFF for now - pure arcade flight feels better
+    sat.wx += sat.vx*dt;
+    sat.wy += sat.vy*dt;
+  }
+
+  // Trail
+  trail.unshift({wx:sat.wx,wy:sat.wy});
+  if(trail.length>TRAIL)trail.pop();
+
+  // Camera: keep satellite at 30% from left, vertically centered
+  const targetCX = sat.wx - W*0.30;
+  const targetCY = sat.wy - H*0.50;
+  camX += (targetCX-camX)*Math.min(1,dt*5);
+  camY += (targetCY-camY)*Math.min(1,dt*5);
+
+  // ── Bounds: gentle bounce off top/bottom of world ────────────────────────
+  const worldTop = -H*0.1, worldBot = H*1.1;  // generous bounds
+  if(sat.wy<worldTop){sat.wy=worldTop;sat.vy=Math.abs(sat.vy)*0.6;}
+  if(sat.wy>worldBot){sat.wy=worldBot;sat.vy=-Math.abs(sat.vy)*0.6;}
+
+  // ── Left boundary: track furthest-right progress, die if too far back ───────
+  if(sat.wx > maxSatX) maxSatX = sat.wx;
+  // Kill if rocket goes more than one screen-width behind its furthest point
+  if(sat.wx < maxSatX - W*1.1){die();return;}
+
+  // ── Planet crash ─────────────────────────────────────────────────────────
+  for(const p of planets){
+    const dx=p.wx-sat.wx, dy=p.wy-sat.wy;
+    if(Math.sqrt(dx*dx+dy*dy)<p.radius+8){die();return;}
+  }
+
+  // ── Orb collection ───────────────────────────────────────────────────────
+  for(const o of orbs){
+    if(o.got)continue;
+    const dx=o.wx-sat.wx, dy=o.wy-sat.wy;
+    if(Math.sqrt(dx*dx+dy*dy)<24){
+      o.got=true;totalOrbs++;score+=150*sector;
+      SFX.collect();
+      burst(sx(sat.wx),sy(sat.wy),'#00eeff',10,2.5,0.5);
+      updHUD();
+    }
+  }
+
+  // ── Sector finish ────────────────────────────────────────────────────────
+  if(sat.wx>finishX){nextSector();}
+}
+
+function die(){
+  sat.alive=false;tethered=false;
+  SFX.die();
+  burst(sx(sat.wx),sy(sat.wy),'#ff5040',30,4,1);
+  burst(sx(sat.wx),sy(sat.wy),'#ffaa20',18,2.2,0.7);
+  setTimeout(()=>showEnd(false),900);
+}
+
+function nextSector(){
+  if(sector>=TOTAL_SECTORS){showEnd(true);SFX.clear();return;}
+  SFX.clear();flash();
+  if(firstInput)cg('game.happytime');  // celebrate sector clear
+  score+=800*sector;sector++;
+  loadSector(sector-1);
+  updHUD();buildPips();
+}
+
+function showEnd(win){
+  gstate=win?'win':'dead';
+  cg('gameplay.gameplayStop');    // close the active session the moment failure/win is confirmed
+  if(win&&firstInput)cg('game.happytime');  // celebrate full mission clear
+  document.getElementById('etitle').textContent=win?'MISSION CLEAR':'ORBITAL LOST';
+  document.getElementById('esub').textContent=win?'All sectors navigated!':'Satellite destroyed';
+  document.getElementById('escore').textContent=`Score: ${score}   Orbs: ${totalOrbs}`;
+  document.getElementById('end').classList.add('show');
+}
+
+function flash(){
+  const f=document.getElementById('flash');
+  f.style.transition='none';f.style.opacity='0.45';
+  requestAnimationFrame(()=>{f.style.transition='opacity 0.8s';f.style.opacity='0';});
+}
+
+function updHUD(){
+  document.getElementById('hs').textContent=score;
+  document.getElementById('hse').textContent=`${sector}/${TOTAL_SECTORS}`;
+  document.getElementById('ho').textContent=totalOrbs;
+}
+function buildPips(){
+  const el=document.getElementById('pips');el.innerHTML='';
+  for(let i=0;i<TOTAL_SECTORS;i++){
+    const d=document.createElement('div');
+    d.className='pip'+(i+1===sector?' cur':i+1<sector?' done':'');
+    el.appendChild(d);
+  }
+}
+
+// ─── Input ───────────────────────────────────────────────────────────────────
+function onPress(){
+  if(gstate!=='playing'||!sat.alive)return;
+  initAudio();resumeCtx();
+  if(!firstInput){
+    firstInput=true;
+    document.getElementById('hint').classList.add('gone');
+    if(!cgDone){cgDone=true;cg('gameplay.gameplayStart');}  // fires on first real gesture only
+    startDrone();
+  }
+  if(!tethered){
+    const ok=doTetherAttach();
+    if(ok){tethered=true;SFX.tether();}
+  }
+}
+function onRelease(){
+  if(!tethered)return;
+  tethered=false;tPlanet=null;
+  SFX.release();
+}
+
+function setMute(val){
+  muted=val;
+  if(gGain)gGain.gain.value=muted?0:0.4;
+  if(window._droneGain)window._droneGain.gain.value=muted?0:0.055;
+  const mb=document.getElementById('mbtn');
+  mb.textContent=muted?'✕':'♪';mb.classList.toggle('off',muted);
+}
+function toggleMute(){initAudio();setMute(!muted);}
+
+document.addEventListener('keydown',e=>{
+  if(e.code==='Space'){
+    e.preventDefault();
+    // If end screen is showing, Space triggers Relaunch
+    if(gstate==='dead'||gstate==='win'){initGame();return;}
+    if(!e.repeat)onPress();
+    return;
+  }
+  if(e.code==='KeyR'){e.preventDefault();initGame();return;}
+  if(e.code==='KeyM'){e.preventDefault();toggleMute();return;}
+});
+document.addEventListener('keyup',e=>{if(e.code==='Space'&&(gstate==='playing')){e.preventDefault();onRelease();}});
+canvas.addEventListener('pointerdown',e=>{e.preventDefault();onPress();},{passive:false});
+canvas.addEventListener('pointerup',e=>{e.preventDefault();onRelease();},{passive:false});
+document.getElementById('rbtn').addEventListener('click',initGame);
+// Make relaunch button work with touch (pointer events already handled by click; ensure pointer-events is all)
+document.getElementById('rbtn').style.pointerEvents='all';
+document.getElementById('rbtn').style.touchAction='manipulation';
+
+const mb=document.getElementById('mbtn');
+mb.addEventListener('click',toggleMute);
+// Ensure mute button is touch-friendly
+mb.style.touchAction='manipulation';
+addEventListener('blur',()=>{if(gGain)gGain.gain.value=0;});
+addEventListener('focus',()=>{if(!muted&&gGain)gGain.gain.value=0.4;});
+
+// ─── Draw ─────────────────────────────────────────────────────────────────────
+function drawBg(){
+  ctx.fillStyle='#00060f';ctx.fillRect(0,0,W,H);
+
+  // Stars with slow parallax
+  const now=Date.now()*0.001;
+  stars.forEach(s=>{
+    const screenX=((s.lx - camX*0.12)%W+W)%W;
+    const screenY=((s.y  - camY*0.06+H*10)%H);
+    const a=0.2+0.25*Math.abs(Math.sin(s.boff+now*s.bspd));
+    ctx.beginPath();ctx.arc(screenX,screenY,s.r,0,Math.PI*2);
+    ctx.fillStyle=`rgba(150,200,255,${a})`;ctx.fill();
+  });
+
+  // Space dust — drifts slowly, accelerates when tethering
+  const dustBoost = tethered ? 3.2 : 1.0;
+  dust.forEach(d=>{
+    const scrollX = camX * d.speed * dustBoost;
+    const screenX = ((d.lx - scrollX % 6000 + 6000) % 6000 / 6000 * W + W) % W;
+    const screenY = ((d.y  - camY*0.03 + H*10) % H);
+    ctx.beginPath();ctx.arc(screenX,screenY,d.r,0,Math.PI*2);
+    ctx.fillStyle=`rgba(180,220,255,${d.a})`;ctx.fill();
+  });
+
+  // Nebula
+  [[W*0.3,H*0.3,'rgba(20,0,60,0.22)'],[W*0.75,H*0.65,'rgba(0,30,70,0.18)']].forEach(([nx,ny,c])=>{
+    const r=W*0.3;
+    const grd=ctx.createRadialGradient(nx,ny,0,nx,ny,r);
+    grd.addColorStop(0,c);grd.addColorStop(1,'rgba(0,0,0,0)');
+    ctx.beginPath();ctx.arc(nx,ny,r,0,Math.PI*2);ctx.fillStyle=grd;ctx.fill();
+  });
+}
+
+function drawGrid(){
+  // Subtle space grid - scrolls with camera
+  const gs=200;
+  const ox=(-camX%gs+gs)%gs;
+  const oy=(-camY%gs+gs)%gs;
+  ctx.strokeStyle='rgba(0,100,200,0.06)';ctx.lineWidth=1;
+  for(let x=ox-gs;x<W+gs;x+=gs){ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,H);ctx.stroke();}
+  for(let y=oy-gs;y<H+gs;y+=gs){ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(W,y);ctx.stroke();}
+}
+
+function drawPlanets(){
+  const now=Date.now()*0.001;
+  planets.forEach(p=>{
+    const px=sx(p.wx), py=sy(p.wy);
+    if(px<-p.tRange*1.5||px>W+p.tRange*1.5)return;
+
+    // Snap range indicator when not tethered and close
+    if(!tethered&&sat.alive){
+      const dx=p.wx-sat.wx,dy=p.wy-sat.wy;
+      const dist=Math.sqrt(dx*dx+dy*dy);
+      const frac=Math.max(0,1-dist/p.tRange);
+      if(frac>0.05){
+        ctx.beginPath();ctx.arc(px,py,p.tRange,0,Math.PI*2);
+        ctx.strokeStyle=`hsla(${p.hue},80%,65%,${frac*0.18})`;
+        ctx.lineWidth=1.5;ctx.setLineDash([8,14]);ctx.stroke();ctx.setLineDash([]);
+      }
+    }
+
+    // Atmosphere
+    const aR=p.radius*3;
+    const atm=ctx.createRadialGradient(px,py,p.radius*0.7,px,py,aR);
+    atm.addColorStop(0,`hsla(${p.hue},100%,65%,0.25)`);
+    atm.addColorStop(0.5,`hsla(${p.hue},100%,55%,0.08)`);
+    atm.addColorStop(1,'rgba(0,0,0,0)');
+    ctx.beginPath();ctx.arc(px,py,aR,0,Math.PI*2);ctx.fillStyle=atm;ctx.fill();
+
+    // Planet body
+    const surf=ctx.createRadialGradient(px-p.radius*0.35,py-p.radius*0.35,0,px,py,p.radius);
+    surf.addColorStop(0,`hsl(${p.hue+25},55%,90%)`);
+    surf.addColorStop(0.35,`hsl(${p.hue},100%,60%)`);
+    surf.addColorStop(0.8,`hsl(${p.hue-15},85%,30%)`);
+    surf.addColorStop(1,`hsl(${p.hue-30},60%,12%)`);
+    ctx.beginPath();ctx.arc(px,py,p.radius,0,Math.PI*2);ctx.fillStyle=surf;ctx.fill();
+
+    // Cloud bands
+    ctx.save();ctx.beginPath();ctx.arc(px,py,p.radius,0,Math.PI*2);ctx.clip();
+    for(let b=0;b<4;b++){
+      const by=py-p.radius+b*(p.radius*0.55)+Math.sin(now*0.15+b*1.3)*p.radius*0.07;
+      ctx.beginPath();ctx.ellipse(px,by,p.radius,p.radius*0.13,0,0,Math.PI*2);
+      ctx.fillStyle=`hsla(${p.hue+50},100%,85%,0.09)`;ctx.fill();
+    }
+    ctx.restore();
+
+    // Neon rim
+    ctx.beginPath();ctx.arc(px,py,p.radius,0,Math.PI*2);
+    ctx.strokeStyle=`hsl(${p.hue},100%,75%)`;ctx.lineWidth=2.5;
+    ctx.shadowColor=`hsl(${p.hue},100%,70%)`;ctx.shadowBlur=22;
+    ctx.stroke();ctx.shadowBlur=0;
+
+    // Ring on big planets
+    if(p.radius>48){
+      ctx.save();ctx.translate(px,py);ctx.scale(1,0.25);
+      ctx.beginPath();ctx.arc(0,0,p.radius*1.6,0,Math.PI*2);
+      ctx.strokeStyle=`hsla(${p.hue},100%,70%,0.4)`;ctx.lineWidth=5;
+      ctx.shadowColor=`hsl(${p.hue},100%,65%)`;ctx.shadowBlur=8;
+      ctx.stroke();ctx.shadowBlur=0;ctx.restore();
+    }
+  });
+}
+
+function drawOrbs(t){
+  orbs.forEach(o=>{
+    if(o.got)return;
+    const ox=sx(o.wx), oy=sy(o.wy);
+    if(ox<-40||ox>W+40||oy<-40||oy>H+40)return;
+    o.t+=0.05;
+    const pulse=0.6+0.4*Math.sin(o.t);
+    const r=8*pulse;
+
+    const grd=ctx.createRadialGradient(ox,oy,0,ox,oy,r*2.5);
+    grd.addColorStop(0,`rgba(0,220,255,${0.28*pulse})`);grd.addColorStop(1,'rgba(0,0,0,0)');
+    ctx.beginPath();ctx.arc(ox,oy,r*2.5,0,Math.PI*2);ctx.fillStyle=grd;ctx.fill();
+
+    ctx.beginPath();ctx.arc(ox,oy,r,0,Math.PI*2);
+    ctx.fillStyle=`rgba(200,245,255,${0.92*pulse})`;
+    ctx.shadowColor='#00deff';ctx.shadowBlur=14;ctx.fill();ctx.shadowBlur=0;
+
+    ctx.save();ctx.translate(ox,oy);ctx.rotate(t*1.2);
+    ctx.strokeStyle=`rgba(0,220,255,${0.8*pulse})`;ctx.lineWidth=1.5;
+    ctx.beginPath();
+    ctx.moveTo(0,-r*1.6);ctx.lineTo(r,0);ctx.lineTo(0,r*1.6);ctx.lineTo(-r,0);ctx.closePath();
+    ctx.stroke();ctx.restore();
+  });
+}
+
+function drawTether(){
+  if(!tethered||!tPlanet||!sat.alive)return;
+  const px=sx(tPlanet.wx), py=sy(tPlanet.wy);
+  const satsx=sx(sat.wx), satsy=sy(sat.wy);
+  const t=Date.now()*0.005;
+
+  // Orbit ring hint
+  ctx.beginPath();ctx.arc(px,py,tArmLen,0,Math.PI*2);
+  ctx.strokeStyle='rgba(160,80,255,0.12)';ctx.lineWidth=1;
+  ctx.setLineDash([6,12]);ctx.stroke();ctx.setLineDash([]);
+
+  // Beam
+  ctx.save();
+  ctx.strokeStyle='rgba(200,60,255,0.95)';ctx.lineWidth=3;
+  ctx.shadowColor='#c040ff';ctx.shadowBlur=20;
+  ctx.setLineDash([14,8]);ctx.lineDashOffset=-t*22;
+  ctx.beginPath();ctx.moveTo(satsx,satsy);ctx.lineTo(px,py);ctx.stroke();
+  ctx.setLineDash([]);ctx.shadowBlur=0;
+
+  // Inner glow beam
+  ctx.strokeStyle='rgba(230,180,255,0.5)';ctx.lineWidth=1;
+  ctx.beginPath();ctx.moveTo(satsx,satsy);ctx.lineTo(px,py);ctx.stroke();
+  ctx.restore();
+
+  // Planet highlight ring
+  ctx.beginPath();ctx.arc(px,py,tPlanet.radius+7,0,Math.PI*2);
+  ctx.strokeStyle='rgba(200,60,255,0.75)';ctx.lineWidth=2.5;
+  ctx.shadowColor='#c040ff';ctx.shadowBlur=25;ctx.stroke();ctx.shadowBlur=0;
+}
+
+function drawSat(t){
+  if(!sat.alive)return;
+  const satsx=sx(sat.wx), satsy=sy(sat.wy);
+
+  // Trail
+  for(let i=trail.length-1;i>=1;i--){
+    const tx=sx(trail[i].wx), ty=sy(trail[i].wy);
+    const frac=1-i/trail.length;
+    const r=10*frac*0.6;
+    if(r<0.5)continue;
+    const col=tethered?`rgba(190,60,255,${frac*0.45})`:`rgba(0,180,255,${frac*0.45})`;
+    ctx.beginPath();ctx.arc(tx,ty,r,0,Math.PI*2);ctx.fillStyle=col;ctx.fill();
+  }
+
+  // Glow
+  const grd=ctx.createRadialGradient(satsx,satsy,0,satsx,satsy,32);
+  grd.addColorStop(0,tethered?'rgba(190,60,255,0.4)':'rgba(0,180,255,0.4)');
+  grd.addColorStop(1,'rgba(0,0,0,0)');
+  ctx.beginPath();ctx.arc(satsx,satsy,32,0,Math.PI*2);ctx.fillStyle=grd;ctx.fill();
+
+  // Body: rotate toward velocity
+  const vel_ang=Math.atan2(sat.vy,sat.vx);
+  ctx.save();ctx.translate(satsx,satsy);ctx.rotate(vel_ang);
+
+  const r=11;
+
+  // Engine thrust glow
+  const eg=ctx.createRadialGradient(-r*1.6,0,0,-r*1.6,0,r*1.4);
+  eg.addColorStop(0,tethered?'rgba(200,100,255,0.9)':'rgba(60,140,255,0.9)');
+  eg.addColorStop(1,'rgba(0,0,0,0)');
+  ctx.beginPath();ctx.ellipse(-r*1.6,0,r*1.2,r*0.45,0,0,Math.PI*2);
+  ctx.fillStyle=eg;ctx.fill();
+
+  // Wings
+  ctx.fillStyle=tethered?'rgba(120,40,200,0.8)':'rgba(20,80,200,0.8)';
+  ctx.strokeStyle=tethered?'rgba(190,60,255,0.7)':'rgba(0,180,255,0.7)';
+  ctx.lineWidth=1;
+  [[-r*0.6, -r*1.9, r*2.1, r*0.5],[- r*0.6, r*1.9-r*0.5, r*2.1, r*0.5]].forEach(([bx,by,bw,bh])=>{
+    ctx.beginPath();ctx.rect(bx,by,bw,bh);ctx.fill();ctx.stroke();
+  });
+
+  // Main fuselage (pointed triangle/arrow shape)
+  const accent=tethered?'#c040ff':'#00b8ff';
+  ctx.fillStyle='#cceeff';
+  ctx.shadowColor=accent;ctx.shadowBlur=20;
+  ctx.beginPath();
+  ctx.moveTo(r*1.5,0);
+  ctx.lineTo(-r*0.7,r);
+  ctx.lineTo(-r*0.2,0);
+  ctx.lineTo(-r*0.7,-r);
+  ctx.closePath();
+  ctx.fill();
+  ctx.strokeStyle=accent;ctx.lineWidth=1.5;ctx.stroke();
+  ctx.shadowBlur=0;
+
+  ctx.restore();
+}
+
+function drawFinish(){
+  const fx=sx(finishX);
+  if(fx<-80||fx>W+80)return;
+  const t=Date.now()*0.003;
+  const pulse=0.55+0.45*Math.sin(t*2.2);
+
+  // Full-height portal
+  const top=0,bot=H;
+  for(let i=0;i<4;i++){
+    const dx=[-28,-9,9,28][i];
+    const a=[0.3,0.6,0.6,0.3][i]*pulse;
+    ctx.strokeStyle=`rgba(0,255,160,${a})`;
+    ctx.lineWidth=2.5;ctx.shadowColor='#00ff99';ctx.shadowBlur=18*pulse;
+    ctx.setLineDash([16,10]);ctx.lineDashOffset=-t*16+i*8;
+    ctx.beginPath();ctx.moveTo(fx+dx,top);ctx.lineTo(fx+dx,bot);ctx.stroke();
+  }
+  ctx.setLineDash([]);ctx.shadowBlur=0;
+
+  ctx.textAlign='center';ctx.font=`bold 11px 'Courier New'`;
+  ctx.fillStyle=`rgba(0,255,160,${0.5+0.4*Math.sin(t*3)})`;
+  ctx.fillText('▶ SECTOR EXIT ▶',fx,40);
+}
+
+function drawNearArrow(){
+  // Directional arrow toward nearest tetherable planet
+  if(tethered||!sat.alive)return;
+  const p=nearestPlanet();if(!p)return;
+  const dx=p.wx-sat.wx, dy=p.wy-sat.wy;
+  const dist=Math.sqrt(dx*dx+dy*dy);
+  const frac=Math.max(0,1-dist/p.tRange);
+  if(frac<0.15)return;
+  const satsx=sx(sat.wx), satsy=sy(sat.wy);
+  const ang=Math.atan2(dy,dx);
+  const arr=28;
+  const ax=satsx+Math.cos(ang)*arr, ay=satsy+Math.sin(ang)*arr;
+  const a=frac*0.7;
+  ctx.save();
+  ctx.strokeStyle=`rgba(200,60,255,${a})`;ctx.lineWidth=2;
+  ctx.shadowColor='#c040ff';ctx.shadowBlur=6;
+  ctx.beginPath();ctx.moveTo(satsx+Math.cos(ang)*16,satsy+Math.sin(ang)*16);
+  ctx.lineTo(ax,ay);ctx.stroke();
+  const ah=9;
+  ctx.beginPath();
+  ctx.moveTo(ax,ay);
+  ctx.lineTo(ax-Math.cos(ang-0.45)*ah,ay-Math.sin(ang-0.45)*ah);
+  ctx.lineTo(ax-Math.cos(ang+0.45)*ah,ay-Math.sin(ang+0.45)*ah);
+  ctx.closePath();ctx.fillStyle=`rgba(200,60,255,${a})`;ctx.fill();
+  ctx.shadowBlur=0;ctx.restore();
+}
+
+// ─── Main loop ───────────────────────────────────────────────────────────────
+let lastTs=0;
+function loop(ts){
+  requestAnimationFrame(loop);
+  const dt=Math.min((ts-lastTs)/1000,0.05);lastTs=ts;
+  const t=ts*0.001;
+
+  drawBg();
+  drawGrid();
+  drawFinish();
+  drawPlanets();
+  drawOrbs(t);
+  drawTether();
+  drawSat(t);
+  drawParticles(dt);
+  drawNearArrow();
+
+  if(gstate==='playing'&&sat.alive)tickSat(dt);
+
+  if(hintTimer>0&&!firstInput){
+    hintTimer-=dt;
+    if(hintTimer<=0)document.getElementById('hint').classList.add('gone');
+  }
+}
+
+// ─── Boot ────────────────────────────────────────────────────────────────────
+addEventListener('load',()=>{
+  initSDK();   // loadingStart + loadingStop fire inside .then() after async handshake
+  initGame();
+  lastTs=performance.now();
+  requestAnimationFrame(loop);
+});
+</script>
+</body>
+</html>
